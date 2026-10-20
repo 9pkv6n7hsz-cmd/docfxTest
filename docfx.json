@@ -28,6 +28,16 @@
       "_appTitle": "Testing Docfx",
       "_enableSearch": true,
       "pdf": true
+    },
+    "markdownEngineProperties":{
+      "alerts": {
+        "TESTAlert": "alert alert-secondary"
+      },
+      "plantUML":{
+        "outputFormat": "svg",
+        "remoteUrl": "http://www.plantuml.com/plantuml/",
+        "renderingMode": "remote"
+      }
     }
   }
 }

@@ -1,0 +1,179 @@
+# Labtrac 2.9.5 upgrade — findings from Arrowhead's rehearsal
+
+Arrowhead Dental Laboratory. Last updated 2026-09-23.
+
+This machine, **Labtrac-Sandbox**, rebuilds itself every night: it restores a fresh copy of our production
+Labtrac database and applies your 2.9.5 upgrade scripts to it. Everything below was found that way and can
+be reproduced here on request.
+
+Nothing here is inferred. Each item states what was run, what happened, and what closes it. See
+**README - Labtrac Sandbox.md** on this desktop for how the refresh works and how to run the steps by hand.
+
+## Which scripts this is about
+
+The set you sent on **2026-09-21** as `Newest Upgrade Scripts.zip`. We accepted it as our standard set on
+2026-09-22 after a full trial run, with the previous set armed as a per-script fallback. All 14 scripts ran,
+none failed, and nothing fell back — the drop is good. The items below are what remains.
+
+The scripts as we run them are on this machine in `C:\temp\Labtrac\SQL Scripts`.
+
+---
+
+## 1. `4 - Update Sp.sql` cannot be applied to a 4229 database
+
+Three columns are read by the script and created by nothing in the set. `ALTER PROCEDURE` binds column names
+against tables that already exist, so this fails at install time, before any client application runs.
+
+| Column | Read by | Error without it |
+|---|---|---|
+| `System_Log.OSVersion` | `Labtrac_GetCurrentUsers` | `Invalid column name 'OSVersion'` |
+| `System_Log.Permission` | `Labtrac_GetCurrentUsers` | `Invalid column name 'Permission'` |
+| `Surgeon_Summary.LastUpdate` | `Surgeon_Update_Surgeon_Summary` | `Invalid column name 'LastUpdate'` |
+
+Reproduced 2026-09-22 on a scratch database holding `System_Log` in its exact post-`3 - Update Tables.sql`
+shape, with `ExeDate` added but not `OSVersion` or `Permission`:
+
+```
+TEST 1: create the proc with System_Log missing the two columns
+  FAILED: Invalid column name 'OSVersion'.
+TEST 2: add the two columns, then try again
+  CREATED OK
+TEST 3: same question for Surgeon_Summary.LastUpdate
+  FAILED: Invalid column name 'LastUpdate'.
+```
+
+**None of the three exist on our 4229 production database.** Checked with `COL_LENGTH` for all 30 columns we
+supply: 0 present, 30 absent. All 18 tables exist; only the columns are new.
+
+**The client application does not create them.** On 2026-09-23 we dropped `System_Log.OSVersion` and
+`Tax_Area.DateCreated` on this sandbox and logged in with the 2.9.5 client. The client wrote its `System_Log`
+row normally and both columns stayed absent. The client reads these columns; it does not create them. So
+they have to come from a script.
+
+To get the upgrade to complete, we add them ourselves at a fixed point in the sequence, immediately before
+`4 - Update Sp.sql`.
+
+## 2. Workbench task list returns HTTP 500
+
+On a database upgraded strictly by the supplied scripts, the Workbench task list fails.
+
+```
+GET /api/orgs/{org}/labs/{lab}/tasks  ->  500
+
+Microsoft.Data.SqlClient.SqlException (0x80131904): Invalid column name 'TimeStamp'.
+  at Smilesolver.Workbench.LocalWorkbenchServices.ListAllTasksAsync(...) line 930
+  at Smilesolver.Workbench.Mvc.ApiControllers.TasksController.Get(...) line 24
+Error Number: 207
+```
+
+The statement behind it, captured with Extended Events filtered on error 207:
+
+```sql
+SELECT [p].[ID], [p].[Bonus], [p].[Deleted], [p].[Description], [p].[FixedPay], [p].[FixedUTA],
+       [p].[LabID], [p].[LeadDays], [p].[MinDays], [p].[OutSourced], [p].[PreferredContractor],
+       [p].[Sequence], [p].[SkillID], [p].[TimeStamp], [p].[UTA], [p].[UTADailyLimit],
+       [p].[ValidForPay], [p].[WorkCenterID]
+FROM [Production_Steps] AS [p]
+WHERE [p].[Deleted] = CAST(0 AS bit)
+```
+
+`3 - Update Tables.sql` adds `TimeStamp rowversion` to **37 tables**. `Production_Steps` is not one of them,
+and no supplied script mentions that table at all.
+
+Adding the column took the endpoint from **500 to 200** immediately, returning normal task data. We used your
+own pattern from `3 - Update Tables.sql`:
+
+```sql
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_NAME = 'Production_Steps' AND COLUMN_NAME = 'TimeStamp')
+BEGIN ALTER TABLE [Production_Steps] ADD [TimeStamp] rowversion NOT NULL END;
+```
+
+## 3. Connected Users is always empty on 2.9.5
+
+`Labtrac_GetCurrentUsers` filters on a fixed list of application names:
+
+```sql
+WHERE SPR.program_name In ('Labtrac Desktop','Labtrac Enterprise',
+                          'Labtrac Productivity Suite','Visual Basic')
+```
+
+The 2.9.5 client connects as **`Labtrac 2.9.5.202`**, which is not in that list. The client's application
+name now carries the version; the procedure was not updated to match.
+
+Measured 2026-09-22 on both sides:
+
+| | Client identifies as | Sessions matching the procedure's list |
+|---|---|---|
+| Production, 4229 | `Labtrac Enterprise` x141, `Labtrac Productivity Suite` x56 | **197** |
+| This sandbox, 2.9.5.202 | `Labtrac 2.9.5.202` | **0** |
+
+This is not a sandbox artefact. Any customer on 2.9.5 will find Connected Users permanently empty. Clicking
+the username to view connected users also raises `Invalid column name 'OSVersion'` when item 1 is not
+addressed.
+
+## 4. Three documented fixes have no corresponding script
+
+From the corrections list and release notes supplied 2026-09-22, each naming a database object:
+
+| Change log entry | State on our 4229 database | In the script set |
+|---|---|---|
+| "Lab_Delete_Lab_Inventory stored procedure added" | exists, last modified **2012-06-05** | not referenced |
+| "Order_insert_Order_stage_Enclosures SP updated to prevent multiple enclosures" | exists, last modified **2012-06-05** | not referenced |
+| "Removed recursion from Function RemoveBadSubContractorDateExt to prevent UI crash" | **does not exist** | not referenced |
+
+`2 - Add Sp.sql` is byte-identical to the previous set, so the two procedures above would still be running
+their 2012 definitions after the upgrade.
+
+## 5. Open question — the other 26 columns
+
+Beyond the four that break something, 26 further columns exist in our upgraded reference and are created by
+no supplied script. They are `DateCreated`, `LastUpdate` and `LabID` columns across 17 tables. No supplied
+script reads or writes any of them, so nothing breaks without them — we add them only so the result matches
+the reference we were left with after the manual upgrade.
+
+Evidence that they belong to the upgrade rather than later drift: every one of their default constraints is
+timestamped **2025-09-02 15:09**, the same window as the objects the scripts do create. Tables the
+application added afterwards — `ManufactureOrder`, `OrderChat`, `WorkflowEvent` — are dated 2025-09-08
+through 2026-01-28 and are excluded.
+
+One detail may help identify the source: the `DateCreated`/`LastUpdate` defaults were explicitly named
+`DF_<Table>_<Column>`, in the style of your own `DF_System_Log_ExeDate`, while the `LabID` defaults were
+system-named. That suggests two different mechanisms, and that at least one of them came from a script we do
+not hold.
+
+---
+
+## What we are asking for
+
+1. The `ALTER TABLE` statements for the four columns that break the upgrade — the three in item 1 and
+   `Production_Steps.TimeStamp` in item 2.
+2. Confirmation of whether the other 26 columns belong in 2.9.5.
+3. The scripts for the three objects in item 4, if those changes are meant to be in this release.
+4. A fix for the application-name filter in item 3.
+
+## What the 2026-09-21 drop already fixed
+
+Worth saying plainly, because it was a real improvement on what we had:
+
+- `1 - New Indexes.sql` is now fully `IF NOT EXISTS`-guarded, and its two unguarded `DROP INDEX` statements
+  are gone.
+- `2 - Order_Stage_ClusteredPK.sql` and `A3 - Surgeon_ClusteredPK.sql` use `DROP CONSTRAINT IF EXISTS`.
+- `OPTIMIZE_FOR_SEQUENTIAL_KEY` was removed from `4 - Product_Header_ClusteredPK.sql`. Our production
+  instance is SQL Server 2017, so that one mattered — the previous version could not run there at all.
+
+Seven documented changes map cleanly onto script changes: the Connect delete trigger, the
+`Email_CaseEntrySource` null-date fix, `Order_Audit_Trail.Description` widening to 250, the TrackingID audit
+entry, the duplicate user initials check, the Case Links character limit, and the parallel scheduling
+setting.
+
+Three script changes appear in neither document — the index guards, the `DROP CONSTRAINT IF EXISTS` guards,
+and the `OPTIMIZE_FOR_SEQUENTIAL_KEY` removal. Those look like responses to what we reported rather than
+product changes, which would explain their absence from a product change log. One line of confirmation that
+they were deliberate would be helpful.
+
+## Reproducing any of this
+
+The rehearsal runs nightly on this machine and can be run on demand. See
+**README - Labtrac Sandbox.md** on this desktop. The run record, including every script and how long it
+took, is at `F:\SqlLanding\Status\LastRefresh.json`.

@@ -1,3 +1,6 @@
 ### YamlMime:XRefMap
 sorted: true
-references: []
+references:
+- uid: fileA
+  name: This is fileB
+  href: Documents/introduction.html

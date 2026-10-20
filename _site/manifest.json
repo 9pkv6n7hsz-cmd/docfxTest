@@ -13,6 +13,16 @@
     },
     {
       "type": "Conceptual",
+      "source_relative_path": "Documents/Labtrac 2.9.5 upgrade — findings from Arrowhead's rehearsal.md",
+      "output": {
+        ".html": {
+          "relative_path": "Documents/Labtrac 2.9.5 upgrade — findings from Arrowhead's rehearsal.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
       "source_relative_path": "Documents/getting-started.md",
       "output": {
         ".html": {

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Labtrac 2.9.5 upgrade — findings from Arrowhead&#39;s rehearsal | Testing Docfx </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Labtrac 2.9.5 upgrade — findings from Arrowhead&#39;s rehearsal | Testing Docfx ">
+      
+      
+      <link rel="icon" href="../favicon.ico">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="../">
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/9pkv6n7hsz-cmd/docfxTest/blob/main/Documents/Labtrac 2.9.5 upgrade — findings from Arrowhead&#39;s rehearsal.md/#L1">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../logo.svg" alt="Testing Docfx">
+            Testing Docfx
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="labtrac-295-upgrade--findings-from-arrowheads-rehearsal">Labtrac 2.9.5 upgrade — findings from Arrowhead's rehearsal</h1>
+
+<p>Arrowhead Dental Laboratory. Last updated 2026-09-23.</p>
+<p>This machine, <strong>Labtrac-Sandbox</strong>, rebuilds itself every night: it restores a fresh copy of our production
+Labtrac database and applies your 2.9.5 upgrade scripts to it. Everything below was found that way and can
+be reproduced here on request.</p>
+<p>Nothing here is inferred. Each item states what was run, what happened, and what closes it. See
+<strong>README - Labtrac Sandbox.md</strong> on this desktop for how the refresh works and how to run the steps by hand.</p>
+<h2 id="which-scripts-this-is-about">Which scripts this is about</h2>
+<p>The set you sent on <strong>2026-09-21</strong> as <code>Newest Upgrade Scripts.zip</code>. We accepted it as our standard set on
+2026-09-22 after a full trial run, with the previous set armed as a per-script fallback. All 14 scripts ran,
+none failed, and nothing fell back — the drop is good. The items below are what remains.</p>
+<p>The scripts as we run them are on this machine in <code>C:\temp\Labtrac\SQL Scripts</code>.</p>
+<hr>
+<h2 id="1-4---update-spsql-cannot-be-applied-to-a-4229-database">1. <code>4 - Update Sp.sql</code> cannot be applied to a 4229 database</h2>
+<p>Three columns are read by the script and created by nothing in the set. <code>ALTER PROCEDURE</code> binds column names
+against tables that already exist, so this fails at install time, before any client application runs.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Read by</th>
+<th>Error without it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>System_Log.OSVersion</code></td>
+<td><code>Labtrac_GetCurrentUsers</code></td>
+<td><code>Invalid column name 'OSVersion'</code></td>
+</tr>
+<tr>
+<td><code>System_Log.Permission</code></td>
+<td><code>Labtrac_GetCurrentUsers</code></td>
+<td><code>Invalid column name 'Permission'</code></td>
+</tr>
+<tr>
+<td><code>Surgeon_Summary.LastUpdate</code></td>
+<td><code>Surgeon_Update_Surgeon_Summary</code></td>
+<td><code>Invalid column name 'LastUpdate'</code></td>
+</tr>
+</tbody>
+</table>
+<p>Reproduced 2026-09-22 on a scratch database holding <code>System_Log</code> in its exact post-<code>3 - Update Tables.sql</code>
+shape, with <code>ExeDate</code> added but not <code>OSVersion</code> or <code>Permission</code>:</p>
+<pre><code>TEST 1: create the proc with System_Log missing the two columns
+  FAILED: Invalid column name 'OSVersion'.
+TEST 2: add the two columns, then try again
+  CREATED OK
+TEST 3: same question for Surgeon_Summary.LastUpdate
+  FAILED: Invalid column name 'LastUpdate'.
+</code></pre>
+<p><strong>None of the three exist on our 4229 production database.</strong> Checked with <code>COL_LENGTH</code> for all 30 columns we
+supply: 0 present, 30 absent. All 18 tables exist; only the columns are new.</p>
+<p><strong>The client application does not create them.</strong> On 2026-09-23 we dropped <code>System_Log.OSVersion</code> and
+<code>Tax_Area.DateCreated</code> on this sandbox and logged in with the 2.9.5 client. The client wrote its <code>System_Log</code>
+row normally and both columns stayed absent. The client reads these columns; it does not create them. So
+they have to come from a script.</p>
+<p>To get the upgrade to complete, we add them ourselves at a fixed point in the sequence, immediately before
+<code>4 - Update Sp.sql</code>.</p>
+<h2 id="2-workbench-task-list-returns-http-500">2. Workbench task list returns HTTP 500</h2>
+<p>On a database upgraded strictly by the supplied scripts, the Workbench task list fails.</p>
+<pre><code>GET /api/orgs/{org}/labs/{lab}/tasks  -&gt;  500
+
+Microsoft.Data.SqlClient.SqlException (0x80131904): Invalid column name 'TimeStamp'.
+  at Smilesolver.Workbench.LocalWorkbenchServices.ListAllTasksAsync(...) line 930
+  at Smilesolver.Workbench.Mvc.ApiControllers.TasksController.Get(...) line 24
+Error Number: 207
+</code></pre>
+<p>The statement behind it, captured with Extended Events filtered on error 207:</p>
+<pre><code class="lang-sql">SELECT [p].[ID], [p].[Bonus], [p].[Deleted], [p].[Description], [p].[FixedPay], [p].[FixedUTA],
+       [p].[LabID], [p].[LeadDays], [p].[MinDays], [p].[OutSourced], [p].[PreferredContractor],
+       [p].[Sequence], [p].[SkillID], [p].[TimeStamp], [p].[UTA], [p].[UTADailyLimit],
+       [p].[ValidForPay], [p].[WorkCenterID]
+FROM [Production_Steps] AS [p]
+WHERE [p].[Deleted] = CAST(0 AS bit)
+</code></pre>
+<p><code>3 - Update Tables.sql</code> adds <code>TimeStamp rowversion</code> to <strong>37 tables</strong>. <code>Production_Steps</code> is not one of them,
+and no supplied script mentions that table at all.</p>
+<p>Adding the column took the endpoint from <strong>500 to 200</strong> immediately, returning normal task data. We used your
+own pattern from <code>3 - Update Tables.sql</code>:</p>
+<pre><code class="lang-sql">IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_NAME = 'Production_Steps' AND COLUMN_NAME = 'TimeStamp')
+BEGIN ALTER TABLE [Production_Steps] ADD [TimeStamp] rowversion NOT NULL END;
+</code></pre>
+<h2 id="3-connected-users-is-always-empty-on-295">3. Connected Users is always empty on 2.9.5</h2>
+<p><code>Labtrac_GetCurrentUsers</code> filters on a fixed list of application names:</p>
+<pre><code class="lang-sql">WHERE SPR.program_name In ('Labtrac Desktop','Labtrac Enterprise',
+                          'Labtrac Productivity Suite','Visual Basic')
+</code></pre>
+<p>The 2.9.5 client connects as <strong><code>Labtrac 2.9.5.202</code></strong>, which is not in that list. The client's application
+name now carries the version; the procedure was not updated to match.</p>
+<p>Measured 2026-09-22 on both sides:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Client identifies as</th>
+<th>Sessions matching the procedure's list</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Production, 4229</td>
+<td><code>Labtrac Enterprise</code> x141, <code>Labtrac Productivity Suite</code> x56</td>
+<td><strong>197</strong></td>
+</tr>
+<tr>
+<td>This sandbox, 2.9.5.202</td>
+<td><code>Labtrac 2.9.5.202</code></td>
+<td><strong>0</strong></td>
+</tr>
+</tbody>
+</table>
+<p>This is not a sandbox artefact. Any customer on 2.9.5 will find Connected Users permanently empty. Clicking
+the username to view connected users also raises <code>Invalid column name 'OSVersion'</code> when item 1 is not
+addressed.</p>
+<h2 id="4-three-documented-fixes-have-no-corresponding-script">4. Three documented fixes have no corresponding script</h2>
+<p>From the corrections list and release notes supplied 2026-09-22, each naming a database object:</p>
+<table>
+<thead>
+<tr>
+<th>Change log entry</th>
+<th>State on our 4229 database</th>
+<th>In the script set</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&quot;Lab_Delete_Lab_Inventory stored procedure added&quot;</td>
+<td>exists, last modified <strong>2012-06-05</strong></td>
+<td>not referenced</td>
+</tr>
+<tr>
+<td>&quot;Order_insert_Order_stage_Enclosures SP updated to prevent multiple enclosures&quot;</td>
+<td>exists, last modified <strong>2012-06-05</strong></td>
+<td>not referenced</td>
+</tr>
+<tr>
+<td>&quot;Removed recursion from Function RemoveBadSubContractorDateExt to prevent UI crash&quot;</td>
+<td><strong>does not exist</strong></td>
+<td>not referenced</td>
+</tr>
+</tbody>
+</table>
+<p><code>2 - Add Sp.sql</code> is byte-identical to the previous set, so the two procedures above would still be running
+their 2012 definitions after the upgrade.</p>
+<h2 id="5-open-question--the-other-26-columns">5. Open question — the other 26 columns</h2>
+<p>Beyond the four that break something, 26 further columns exist in our upgraded reference and are created by
+no supplied script. They are <code>DateCreated</code>, <code>LastUpdate</code> and <code>LabID</code> columns across 17 tables. No supplied
+script reads or writes any of them, so nothing breaks without them — we add them only so the result matches
+the reference we were left with after the manual upgrade.</p>
+<p>Evidence that they belong to the upgrade rather than later drift: every one of their default constraints is
+timestamped <strong>2025-09-02 15:09</strong>, the same window as the objects the scripts do create. Tables the
+application added afterwards — <code>ManufactureOrder</code>, <code>OrderChat</code>, <code>WorkflowEvent</code> — are dated 2025-09-08
+through 2026-01-28 and are excluded.</p>
+<p>One detail may help identify the source: the <code>DateCreated</code>/<code>LastUpdate</code> defaults were explicitly named
+<code>DF_&lt;Table&gt;_&lt;Column&gt;</code>, in the style of your own <code>DF_System_Log_ExeDate</code>, while the <code>LabID</code> defaults were
+system-named. That suggests two different mechanisms, and that at least one of them came from a script we do
+not hold.</p>
+<hr>
+<h2 id="what-we-are-asking-for">What we are asking for</h2>
+<ol>
+<li>The <code>ALTER TABLE</code> statements for the four columns that break the upgrade — the three in item 1 and
+<code>Production_Steps.TimeStamp</code> in item 2.</li>
+<li>Confirmation of whether the other 26 columns belong in 2.9.5.</li>
+<li>The scripts for the three objects in item 4, if those changes are meant to be in this release.</li>
+<li>A fix for the application-name filter in item 3.</li>
+</ol>
+<h2 id="what-the-2026-09-21-drop-already-fixed">What the 2026-09-21 drop already fixed</h2>
+<p>Worth saying plainly, because it was a real improvement on what we had:</p>
+<ul>
+<li><code>1 - New Indexes.sql</code> is now fully <code>IF NOT EXISTS</code>-guarded, and its two unguarded <code>DROP INDEX</code> statements
+are gone.</li>
+<li><code>2 - Order_Stage_ClusteredPK.sql</code> and <code>A3 - Surgeon_ClusteredPK.sql</code> use <code>DROP CONSTRAINT IF EXISTS</code>.</li>
+<li><code>OPTIMIZE_FOR_SEQUENTIAL_KEY</code> was removed from <code>4 - Product_Header_ClusteredPK.sql</code>. Our production
+instance is SQL Server 2017, so that one mattered — the previous version could not run there at all.</li>
+</ul>
+<p>Seven documented changes map cleanly onto script changes: the Connect delete trigger, the
+<code>Email_CaseEntrySource</code> null-date fix, <code>Order_Audit_Trail.Description</code> widening to 250, the TrackingID audit
+entry, the duplicate user initials check, the Case Links character limit, and the parallel scheduling
+setting.</p>
+<p>Three script changes appear in neither document — the index guards, the <code>DROP CONSTRAINT IF EXISTS</code> guards,
+and the <code>OPTIMIZE_FOR_SEQUENTIAL_KEY</code> removal. Those look like responses to what we reported rather than
+product changes, which would explain their absence from a product change log. One line of confirmation that
+they were deliberate would be helpful.</p>
+<h2 id="reproducing-any-of-this">Reproducing any of this</h2>
+<p>The rehearsal runs nightly on this machine and can be run on demand. See
+<strong>README - Labtrac Sandbox.md</strong> on this desktop. The run record, including every script and how long it
+took, is at <code>F:\SqlLanding\Status\LastRefresh.json</code>.</p>
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/9pkv6n7hsz-cmd/docfxTest/blob/main/Documents/Labtrac 2.9.5 upgrade — findings from Arrowhead&#39;s rehearsal.md/#L1" class="edit-link">Edit this page</a>
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <span>Made with <a href="https://dotnet.github.io/docfx">docfx</a></span>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
